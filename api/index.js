@@ -40,9 +40,9 @@ async function connectToDatabase() {
 // 2) AGENTE DE IA (Google Gemini) — el "recepcionista inteligente"
 // ------------------------------------------------------------
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-// gemini-2.5-flash tiene tier gratuito (revisa límites vigentes en Google AI Studio).
-// Si te quedas sin cuota, puedes cambiar a "gemini-2.5-flash-lite".
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+// gemini-3.1-flash-lite tiene tier gratuito (revisa límites vigentes en Google AI Studio).
+// Si te quedas sin cuota, puedes cambiar a "gemini-3.1-flash-lite".
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 
 async function clasificarConGemini(titulo, descripcion, prioridadUsuario) {
   // Si no hay API key configurada, usamos una clasificación básica de respaldo
