@@ -46,7 +46,9 @@ git -v
 1. Ve a https://aistudio.google.com/apikey
 2. Inicia sesión con una cuenta de Google y click en **Create API key**.
 3. Copia la key. Esto es tu `GEMINI_API_KEY`.
-4. El modelo que usa este proyecto es `gemini-2.5-flash` (tiene tier gratuito). Si en algún momento te quedas sin cuota, cambia la variable `GEMINI_MODEL` a `gemini-2.5-flash-lite` (más liviano, más cuota gratis).
+4. El modelo que usa este proyecto por defecto es `gemini-3.1-flash-lite` (el modelo gratuito vigente de Google, generación Gemini 3). Si en algún momento quieres mejor calidad de razonamiento sin salir del tier gratuito, cambia `GEMINI_MODEL` a `gemini-3.5-flash`.
+
+> ⚠️ Google actualiza su catálogo de modelos con frecuencia y a veces retira modelos viejos para llaves nuevas (por ejemplo, `gemini-2.5-flash` dejó de estar disponible para keys nuevas). Si en el futuro te sale un error `404 NOT_FOUND` o "no longer available", solo necesitas cambiar el valor de `GEMINI_MODEL` en las variables de entorno de Vercel — no hace falta tocar código. Revisa el modelo vigente en https://ai.google.dev/gemini-api/docs/models
 
 > 💡 Los límites gratuitos cambian de vez en cuando. Revisa el uso actual en el panel de AI Studio si te sale un error 429 (demasiadas peticiones).
 
@@ -85,10 +87,12 @@ git -v
    MONGODB_URI=mongodb+srv://usuario:tucontraseña@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
    DB_NAME=helpdesk
    GEMINI_API_KEY=tu_api_key_de_gemini
-   GEMINI_MODEL=gemini-2.5-flash
+   GEMINI_MODEL=gemini-3.1-flash-lite
    TRELLO_KEY=tu_trello_key
    TRELLO_TOKEN=tu_trello_token
-   TRELLO_LIST_ID=id_de_la_lista
+   TRELLO_LIST_BAJA=id_de_la_lista_baja
+   TRELLO_LIST_MEDIA=id_de_la_lista_media
+   TRELLO_LIST_ALTA=id_de_la_lista_alta
    ```
 3. Instala las dependencias:
    ```
@@ -148,17 +152,20 @@ git -v
 
 Abre en tu navegador (reemplaza con tu URL real):
 
-- `https://tu-proyecto.vercel.app/index.html` → crea un ticket normal.
-- `https://tu-proyecto.vercel.app/admin.html` → panel de agentes, ves todos los tickets.
-- `https://tu-proyecto.vercel.app/dashboard.html` → estadísticas.
+- `https://tu-proyecto.vercel.app/login.html` → **punto de entrada del portal de usuario**. Escribe cualquier correo para "iniciar sesión" (es solo una identificación por correo, sin contraseña — así el sistema sabe qué tickets son tuyos).
+- Después del login entras a `index.html` → aquí solo puedes **crear tickets** (con el botón "+ Nuevo ticket", que abre un popup) y **ver los tickets que tú mismo enviaste**, junto con la respuesta de la IA o del agente cuando llegue. La IA decide la prioridad sola; ya no la eliges tú.
+- `https://tu-proyecto.vercel.app/admin.html` → **panel de agentes**, sin login (pensado para que solo tú, como administrador, lo uses). Aquí ves **todos** los tickets de todos los usuarios, con botón "Ver / Responder" para escribir una respuesta manual, verificar lo que dijo la IA, cerrar o eliminar el ticket.
+- `https://tu-proyecto.vercel.app/dashboard.html` → estadísticas generales (enlazado desde el panel de agentes).
 - `https://tu-proyecto.vercel.app/api/health` → debe decir `"mongo": true, "gemini": true, "trello": true`.
 
 ### Prueba los 3 escenarios del proyecto:
-1. **Ticket normal**: título "Mi impresora no imprime", prioridad Normal → se guarda y la IA lo clasifica como hardware/media.
-2. **Ticket urgente**: título "SERVIDOR CAÍDO", prioridad Urgente → la IA lo marca como crítico/alto y se crea automáticamente una tarjeta en tu tablero de Trello.
-3. **Pregunta frecuente**: título "¿Cómo reinicio la VPN?" → la IA detecta que es una pregunta simple, responde automáticamente y cierra el ticket solo.
+1. **Ticket normal**: título "Mi impresora no imprime" → la IA lo clasifica sola (ej. hardware/media), deja una recomendación, y aparece en tu lista de tickets aunque siga abierto para que el agente lo confirme.
+2. **Ticket urgente**: título "SERVIDOR CAÍDO", descripción "Nadie puede entrar al sistema" → la IA lo marca como crítico/alto y se crea automáticamente una tarjeta en tu tablero de Trello.
+3. **Pregunta frecuente**: título "¿Cómo reinicio la VPN?" → la IA detecta que se puede resolver sola, responde con pasos y cierra el ticket automáticamente — lo ves reflejado al instante en tu portal de usuario.
 
 Cada vez que hagas `git push`, Vercel vuelve a desplegar automáticamente (CI/CD).
+
+> ⚠️ **Nota sobre el login:** es una identificación simple por correo (sin contraseña), pensada para un proyecto académico. Cualquiera que escriba el mismo correo vería esos mismos tickets — no es una autenticación real con verificación de identidad. Si en algún momento quieres algo más robusto (código de verificación por correo, por ejemplo), dime y lo agregamos.
 
 ---
 

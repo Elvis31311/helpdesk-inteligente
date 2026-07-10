@@ -8,20 +8,17 @@
 </head>
 <body>
 <header>
-  <h1>🎫 Help Desk Inteligente</h1>
+  <h1>🛠️ Panel de Agentes</h1>
   <nav>
-    <a href="index.html">Crear Ticket</a>
-    <a href="admin.html" class="active">Panel de Agentes</a>
+    <a href="admin.html" class="active">Todos los tickets</a>
     <a href="dashboard.html">Dashboard</a>
   </nav>
 </header>
 
 <main>
-  <div class="card">
-    <h2>Panel de Agentes</h2>
-    <p class="muted">Aquí se listan todos los tickets guardados en MongoDB Atlas, ya clasificados por el agente de IA.</p>
-
-    <div class="actions" style="margin-bottom: 16px;">
+  <div class="top-bar">
+    <h2>Todos los tickets</h2>
+    <div class="actions">
       <select id="filtro-estado">
         <option value="">Todos los estados</option>
         <option value="abierto">Abiertos</option>
@@ -29,20 +26,47 @@
       </select>
       <button class="secondary" id="btn-refrescar">🔄 Refrescar</button>
     </div>
+  </div>
 
-    <div id="contenedor-tabla">
-      <p class="muted">Cargando tickets...</p>
-    </div>
+  <div id="contenedor-tabla">
+    <p class="muted">Cargando tickets...</p>
   </div>
 </main>
 
+<!-- Modal: ver / responder ticket -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box" style="max-width:560px;">
+    <div class="modal-header">
+      <h2 id="modal-titulo">Ticket</h2>
+      <button class="ghost" id="btn-cerrar-modal">✕</button>
+    </div>
+
+    <div id="modal-detalle" class="muted" style="margin-bottom:14px;"></div>
+
+    <div id="modal-ia-box"></div>
+
+    <label for="respuesta-admin">Respuesta / notas del agente</label>
+    <textarea id="respuesta-admin" placeholder="Escribe la respuesta que verá el usuario, o notas de verificación..."></textarea>
+
+    <div class="actions">
+      <button id="btn-guardar-abierto">Guardar respuesta</button>
+      <button id="btn-guardar-cerrar" class="secondary">Guardar y cerrar ticket</button>
+      <button id="btn-eliminar" class="danger">Eliminar</button>
+    </div>
+  </div>
+</div>
+
 <script>
+let ticketsCache = [];
+let ticketActivoId = null;
+
 const contenedor = document.getElementById('contenedor-tabla');
 const filtroEstado = document.getElementById('filtro-estado');
 const btnRefrescar = document.getElementById('btn-refrescar');
+const overlay = document.getElementById('modal-overlay');
 
 function badge(texto, clase) {
-  return `<span class="badge ${clase}">${texto}</span>`;
+  return `<span class="badge ${clase}">${texto || 'sin clasificar'}</span>`;
 }
 
 function formatearFecha(iso) {
@@ -54,79 +78,101 @@ async function cargarTickets() {
   contenedor.innerHTML = '<p class="muted">Cargando tickets...</p>';
   try {
     const res = await fetch('/api/tickets');
-    let tickets = await res.json();
+    ticketsCache = await res.json();
 
+    let tickets = ticketsCache;
     const estado = filtroEstado.value;
     if (estado) tickets = tickets.filter(t => t.estado === estado);
 
     if (!tickets.length) {
-      contenedor.innerHTML = '<div class="empty">No hay tickets todavía.</div>';
+      contenedor.innerHTML = '<div class="card empty">No hay tickets todavía.</div>';
       return;
     }
 
-    let html = '<table><thead><tr>';
-    html += '<th>Título</th><th>Prioridad</th><th>Categoría</th><th>Equipo</th><th>Estado</th><th>Creado</th><th>Acciones</th>';
+    let html = '<div class="card" style="padding:0; overflow-x:auto;"><table><thead><tr>';
+    html += '<th>Ticket</th><th>Prioridad</th><th>Categoría</th><th>Equipo</th><th>Estado</th><th>Respondido por</th><th>Creado</th><th></th>';
     html += '</tr></thead><tbody>';
 
     tickets.forEach(t => {
-      const prioridad = t.prioridadIA || t.prioridad || 'normal';
+      const prioridad = t.prioridadIA;
+      let respondidoPor = '—';
+      if (t.respuestaAdmin) respondidoPor = '🧑‍💼 Agente';
+      else if (t.respuestaIA) respondidoPor = '🤖 IA';
+
       html += '<tr>';
       html += `<td><strong>${t.titulo}</strong><br><span class="muted">${t.email}</span>`;
       if (t.trelloUrl) html += `<br><a class="link" href="${t.trelloUrl}" target="_blank">Ver en Trello</a>`;
       html += `</td>`;
-      html += `<td>${badge(prioridad, prioridad)}</td>`;
+      html += `<td>${badge(prioridad, prioridad || 'media')}</td>`;
       html += `<td>${t.categoria || '—'}</td>`;
       html += `<td>${t.equipo || '—'}</td>`;
       html += `<td>${badge(t.estado, t.estado)}</td>`;
+      html += `<td>${respondidoPor}</td>`;
       html += `<td class="muted">${formatearFecha(t.createdAt)}</td>`;
-      html += `<td class="actions">`;
-      if (t.estado === 'abierto') {
-        html += `<button class="secondary" onclick="cerrarTicket('${t._id}')">Cerrar</button>`;
-      } else {
-        html += `<button class="secondary" onclick="reabrirTicket('${t._id}')">Reabrir</button>`;
-      }
-      html += `<button class="danger" onclick="eliminarTicket('${t._id}')">Eliminar</button>`;
-      html += `</td></tr>`;
-
-      if (t.respuestaIA) {
-        html += `<tr><td colspan="7" class="muted">💬 Respuesta automática de la IA: ${t.respuestaIA}</td></tr>`;
-      }
+      html += `<td><button class="secondary" onclick="abrirModal('${t._id}')">Ver / Responder</button></td>`;
+      html += `</tr>`;
     });
 
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     contenedor.innerHTML = html;
   } catch (err) {
     contenedor.innerHTML = `<div class="resultado error">No se pudieron cargar los tickets: ${err.message}</div>`;
   }
 }
 
-async function cerrarTicket(id) {
-  await fetch(`/api/tickets/${id}`, {
+function abrirModal(id) {
+  const t = ticketsCache.find(x => x._id === id);
+  if (!t) return;
+  ticketActivoId = id;
+
+  document.getElementById('modal-titulo').textContent = t.titulo;
+  document.getElementById('modal-detalle').innerHTML = `
+    <strong>De:</strong> ${t.email}<br>
+    <strong>Descripción:</strong> ${t.descripcion}<br>
+    <strong>Prioridad:</strong> ${t.prioridadIA || 'sin clasificar'} · <strong>Categoría:</strong> ${t.categoria || '—'} · <strong>Equipo:</strong> ${t.equipo || '—'}
+  `;
+
+  const iaBox = document.getElementById('modal-ia-box');
+  iaBox.innerHTML = t.respuestaIA
+    ? `<div class="respuesta-box ia"><span class="quien">Recomendación de la IA</span>${t.respuestaIA}</div>`
+    : '';
+
+  document.getElementById('respuesta-admin').value = t.respuestaAdmin || '';
+  overlay.classList.add('open');
+}
+
+document.getElementById('btn-cerrar-modal').addEventListener('click', () => overlay.classList.remove('open'));
+overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('open'); });
+
+async function guardarRespuesta(cerrar) {
+  const respuesta = document.getElementById('respuesta-admin').value.trim();
+  const cambios = { respuestaAdmin: respuesta || null };
+  if (cerrar) cambios.estado = 'cerrado';
+
+  await fetch(`/api/tickets/${ticketActivoId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ estado: 'cerrado' }),
+    body: JSON.stringify(cambios),
   });
+
+  overlay.classList.remove('open');
   cargarTickets();
 }
 
-async function reabrirTicket(id) {
-  await fetch(`/api/tickets/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ estado: 'abierto' }),
-  });
-  cargarTickets();
-}
+document.getElementById('btn-guardar-abierto').addEventListener('click', () => guardarRespuesta(false));
+document.getElementById('btn-guardar-cerrar').addEventListener('click', () => guardarRespuesta(true));
 
-async function eliminarTicket(id) {
+document.getElementById('btn-eliminar').addEventListener('click', async () => {
   if (!confirm('¿Eliminar este ticket permanentemente?')) return;
-  await fetch(`/api/tickets/${id}`, { method: 'DELETE' });
+  await fetch(`/api/tickets/${ticketActivoId}`, { method: 'DELETE' });
+  overlay.classList.remove('open');
   cargarTickets();
-}
+});
 
 filtroEstado.addEventListener('change', cargarTickets);
 btnRefrescar.addEventListener('click', cargarTickets);
 cargarTickets();
+setInterval(cargarTickets, 15000);
 </script>
 </body>
 </html>

@@ -40,38 +40,39 @@ async function connectToDatabase() {
 // 2) AGENTE DE IA (Google Gemini) — el "recepcionista inteligente"
 // ------------------------------------------------------------
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-// gemini-3.1-flash-lite tiene tier gratuito (revisa límites vigentes en Google AI Studio).
-// Si te quedas sin cuota, puedes cambiar a "gemini-3.1-flash-lite".
+// gemini-3.1-flash-lite es el modelo gratuito vigente de Google (Gemini 3, GA desde mayo 2026).
+// Si quieres más calidad de razonamiento (con el mismo tier gratuito), puedes usar "gemini-3.5-flash".
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 
-async function clasificarConGemini(titulo, descripcion, prioridadUsuario) {
+// La prioridad y todo lo demás ahora lo decide 100% la IA — el usuario ya no la elige.
+async function clasificarConGemini(titulo, descripcion) {
   // Si no hay API key configurada, usamos una clasificación básica de respaldo
   // para que el sistema nunca se caiga por falta de IA.
   if (!GEMINI_API_KEY) {
     return {
-      prioridad: prioridadUsuario || 'media',
+      prioridad: 'media',
       categoria: 'general',
       equipo: 'level1',
-      escalar: prioridadUsuario === 'urgente' || prioridadUsuario === 'alta',
+      escalar: false,
       esPreguntaFrecuente: false,
       respuestaSugerida: null,
     };
   }
 
-  const systemInstruction = `Eres el agente de IA de un Help Desk. Tu trabajo es leer un ticket de soporte y clasificarlo con criterio profesional.
+  const systemInstruction = `Eres el agente de IA de un Help Desk. Tu trabajo es leer un ticket de soporte, clasificarlo con criterio profesional y, siempre que puedas, dar una recomendación útil.
 
 Reglas de clasificación:
-- "prioridad": una de "critica", "alta", "media", "baja".
+- "prioridad": una de "critica", "alta", "media", "baja". Tú decides la prioridad real del problema; el usuario no la indica.
 - "categoria": una de "hardware", "software", "red", "acceso", "infraestructura".
 - "equipo": una de "level1", "level2", "devops", "infraestructura".
 - "escalar": true si la prioridad es "critica" o "alta".
-- "esPreguntaFrecuente": true si el ticket es una pregunta simple que se puede resolver sin un agente humano (ej. "¿cómo reinicio la VPN?", "¿cómo cambio mi contraseña?").
-- "respuestaSugerida": si "esPreguntaFrecuente" es true, escribe una respuesta corta, clara y en español con pasos numerados. Si no, usa null.
+- "esPreguntaFrecuente": true SOLO si el ticket se puede resolver por completo con la respuesta de la IA, sin que un agente humano tenga que intervenir (ej. "¿cómo reinicio la VPN?", "olvidé mi contraseña", "no encuentro tal opción del sistema").
+- "respuestaSugerida": escribe SIEMPRE una respuesta corta, clara y en español con pasos numerados o recomendaciones de solución, cada vez que exista un procedimiento conocido o una buena práctica que pueda ayudar — incluso si el ticket igual necesita intervención humana (en ese caso, la respuesta son solo pasos preliminares o recomendaciones mientras un agente lo revisa). Usa null únicamente si de verdad no hay ninguna recomendación posible sin más información.
 
 Responde ÚNICAMENTE con un objeto JSON válido (sin texto extra, sin markdown), con este formato exacto:
-{"prioridad": "...", "categoria": "...", "equipo": "...", "escalar": true, "esPreguntaFrecuente": false, "respuestaSugerida": null}`;
+{"prioridad": "...", "categoria": "...", "equipo": "...", "escalar": true, "esPreguntaFrecuente": false, "respuestaSugerida": "..." }`;
 
-  const userPrompt = `Título: ${titulo}\nDescripción: ${descripcion}\nPrioridad indicada por el usuario: ${prioridadUsuario || 'no especificada'}`;
+  const userPrompt = `Título: ${titulo}\nDescripción: ${descripcion}`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -172,9 +173,10 @@ app.get('/api/health', (req, res) => {
 });
 
 // Crear ticket (flujo completo: guarda -> clasifica con IA -> escala a Trello si aplica)
+// El usuario YA NO elige prioridad: la decide 100% el agente de IA.
 app.post('/api/tickets', async (req, res) => {
   try {
-    const { titulo, descripcion, prioridad, email } = req.body || {};
+    const { titulo, descripcion, email } = req.body || {};
 
     if (!titulo || !descripcion || !email) {
       return res.status(400).json({ error: 'Título, descripción y email son obligatorios' });
@@ -185,7 +187,6 @@ app.post('/api/tickets', async (req, res) => {
     const nuevoTicket = {
       titulo,
       descripcion,
-      prioridad: prioridad || 'normal',
       email,
       estado: 'abierto',
       categoria: null,
@@ -194,6 +195,7 @@ app.post('/api/tickets', async (req, res) => {
       escalado: false,
       trelloUrl: null,
       respuestaIA: null,
+      respuestaAdmin: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -201,10 +203,10 @@ app.post('/api/tickets', async (req, res) => {
     const resultado = await db.collection('tickets').insertOne(nuevoTicket);
     const ticketId = resultado.insertedId;
 
-    let mensaje = '¡Ticket creado exitosamente!';
+    let mensaje = '¡Ticket creado! Nuestro agente de IA lo está revisando...';
 
     try {
-      const clasificacion = await clasificarConGemini(titulo, descripcion, prioridad);
+      const clasificacion = await clasificarConGemini(titulo, descripcion);
 
       const actualizacion = {
         categoria: clasificacion.categoria,
@@ -213,22 +215,26 @@ app.post('/api/tickets', async (req, res) => {
         escalado: Boolean(clasificacion.escalar),
       };
 
+      if (clasificacion.respuestaSugerida) {
+        actualizacion.respuestaIA = clasificacion.respuestaSugerida;
+      }
+
       if (clasificacion.esPreguntaFrecuente && clasificacion.respuestaSugerida) {
         // Preguntas frecuentes: la IA responde sola y el ticket se cierra.
         // No necesita tarjeta en Trello porque ya quedó resuelto.
-        actualizacion.respuestaIA = clasificacion.respuestaSugerida;
         actualizacion.estado = 'cerrado';
-        mensaje = 'Ticket creado y respondido automáticamente por la IA.';
+        mensaje = 'Tu ticket ya fue respondido automáticamente por la IA.';
       } else {
         // Todo lo demás (baja, media, alta, crítica) obtiene una tarjeta
-        // en la lista de Trello que corresponde a su prioridad.
+        // en la lista de Trello que corresponde a su prioridad, y sigue abierto
+        // para que un agente lo confirme (aunque la IA ya haya dejado una recomendación).
         const trelloUrl = await crearTarjetaTrello({ ...nuevoTicket, _id: ticketId }, clasificacion);
         if (trelloUrl) {
           actualizacion.trelloUrl = trelloUrl;
-          mensaje = clasificacion.escalar
-            ? 'Ticket creado. Es urgente: un agente lo revisará ahora mismo.'
-            : 'Ticket creado y agregado al tablero de seguimiento en Trello.';
         }
+        mensaje = clasificacion.escalar
+          ? 'Ticket creado. Es urgente: un agente lo revisará ahora mismo.'
+          : 'Ticket creado y agregado a seguimiento. La IA dejó una recomendación mientras un agente lo confirma.';
       }
 
       await db.collection('tickets').updateOne(
@@ -248,11 +254,16 @@ app.post('/api/tickets', async (req, res) => {
   }
 });
 
-// Listar todos los tickets
+// Listar tickets. Si se pasa ?email=..., solo devuelve los de ese correo (portal de usuario).
+// Sin ese parámetro, devuelve todos (panel de administrador).
 app.get('/api/tickets', async (req, res) => {
   try {
     const db = await connectToDatabase();
-    const tickets = await db.collection('tickets').find().sort({ createdAt: -1 }).toArray();
+    const filtro = {};
+    if (req.query.email) {
+      filtro.email = String(req.query.email).toLowerCase().trim();
+    }
+    const tickets = await db.collection('tickets').find(filtro).sort({ createdAt: -1 }).toArray();
     res.json(tickets);
   } catch (error) {
     console.error(error);
@@ -273,7 +284,7 @@ app.get('/api/tickets/:id', async (req, res) => {
   }
 });
 
-// Actualizar ticket (ej. cerrar, cambiar estado, reasignar)
+// Actualizar ticket (ej. cerrar, reabrir, o el admin agrega su propia respuesta manual)
 app.put('/api/tickets/:id', async (req, res) => {
   try {
     const db = await connectToDatabase();
@@ -311,11 +322,11 @@ app.delete('/api/tickets/:id', async (req, res) => {
 // Endpoint manual del agente de IA (útil para probarlo solo, sin crear un ticket)
 app.post('/api/agent/triage', async (req, res) => {
   try {
-    const { titulo, descripcion, prioridad } = req.body || {};
+    const { titulo, descripcion } = req.body || {};
     if (!titulo || !descripcion) {
       return res.status(400).json({ error: 'Título y descripción son obligatorios' });
     }
-    const clasificacion = await clasificarConGemini(titulo, descripcion, prioridad);
+    const clasificacion = await clasificarConGemini(titulo, descripcion);
     res.json(clasificacion);
   } catch (error) {
     console.error(error);
@@ -339,7 +350,7 @@ app.get('/api/stats', async (req, res) => {
     };
 
     tickets.forEach((t) => {
-      const p = t.prioridadIA || t.prioridad || 'sin_clasificar';
+      const p = t.prioridadIA || 'sin_clasificar';
       stats.porPrioridad[p] = (stats.porPrioridad[p] || 0) + 1;
       const c = t.categoria || 'sin_clasificar';
       stats.porCategoria[c] = (stats.porCategoria[c] || 0) + 1;

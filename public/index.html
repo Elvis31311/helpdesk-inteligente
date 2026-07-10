@@ -3,23 +3,37 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Help Desk Inteligente</title>
+<title>Mis Tickets — Help Desk Inteligente</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 <header>
   <h1>🎫 Help Desk Inteligente</h1>
-  <nav>
-    <a href="index.html" class="active">Crear Ticket</a>
-    <a href="admin.html">Panel de Agentes</a>
-    <a href="dashboard.html">Dashboard</a>
-  </nav>
+  <div class="user-badge">
+    <span id="user-email"></span>
+    <button class="ghost" id="btn-logout">Cerrar sesión</button>
+  </div>
 </header>
 
 <main>
-  <div class="card">
-    <h2>Crear un nuevo ticket</h2>
-    <p class="muted">Describe tu problema. Nuestro agente de IA lo va a leer, clasificar y, si es necesario, escalarlo automáticamente.</p>
+  <div class="top-bar">
+    <h2>Mis tickets</h2>
+    <button id="btn-abrir-modal">+ Nuevo ticket</button>
+  </div>
+
+  <div id="contenedor-tickets">
+    <p class="muted">Cargando tus tickets...</p>
+  </div>
+</main>
+
+<!-- Modal: crear ticket -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>Crear un nuevo ticket</h2>
+      <button class="ghost" id="btn-cerrar-modal">✕</button>
+    </div>
+    <p class="muted" style="margin-top:0;">Describe tu problema. Nuestro agente de IA lo va a leer, clasificar por prioridad y, si es necesario, escalarlo automáticamente.</p>
 
     <form id="form-ticket">
       <label for="titulo">Título</label>
@@ -28,25 +42,33 @@
       <label for="descripcion">Descripción</label>
       <textarea id="descripcion" placeholder="Cuéntanos con detalle qué está pasando..." required></textarea>
 
-      <label for="prioridad">Prioridad</label>
-      <select id="prioridad">
-        <option value="baja">Baja</option>
-        <option value="normal" selected>Normal</option>
-        <option value="alta">Alta</option>
-        <option value="urgente">Urgente</option>
-      </select>
-
-      <label for="email">Tu email</label>
-      <input type="email" id="email" placeholder="tucorreo@ejemplo.com" required />
-
-      <button type="submit" id="btn-enviar">🚀 Enviar Ticket</button>
+      <button type="submit" id="btn-enviar" style="width:100%">🚀 Enviar Ticket</button>
     </form>
 
     <div id="resultado"></div>
   </div>
-</main>
+</div>
 
 <script>
+// ---------- Sesión (login simple por correo, sin contraseña) ----------
+const email = localStorage.getItem('helpdesk_user_email');
+if (!email) {
+  window.location.href = 'login.html';
+}
+document.getElementById('user-email').textContent = email;
+
+document.getElementById('btn-logout').addEventListener('click', () => {
+  localStorage.removeItem('helpdesk_user_email');
+  window.location.href = 'login.html';
+});
+
+// ---------- Modal ----------
+const overlay = document.getElementById('modal-overlay');
+document.getElementById('btn-abrir-modal').addEventListener('click', () => overlay.classList.add('open'));
+document.getElementById('btn-cerrar-modal').addEventListener('click', () => overlay.classList.remove('open'));
+overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('open'); });
+
+// ---------- Crear ticket ----------
 const form = document.getElementById('form-ticket');
 const resultadoDiv = document.getElementById('resultado');
 const btnEnviar = document.getElementById('btn-enviar');
@@ -64,8 +86,7 @@ form.addEventListener('submit', async (e) => {
   const payload = {
     titulo: document.getElementById('titulo').value.trim(),
     descripcion: document.getElementById('descripcion').value.trim(),
-    prioridad: document.getElementById('prioridad').value,
-    email: document.getElementById('email').value.trim(),
+    email,
   };
 
   try {
@@ -82,28 +103,14 @@ form.addEventListener('submit', async (e) => {
       return;
     }
 
-    const t = data.ticket;
-    let html = `<div class="resultado exito">`;
-    html += `<p>✅ ${data.mensaje}</p>`;
-    html += `<p><strong>ID del ticket:</strong> ${t._id}</p>`;
-
-    if (t.categoria) {
-      html += `<p><strong>Clasificación de la IA:</strong> `;
-      html += badge(t.prioridadIA || t.prioridad, t.prioridadIA || t.prioridad);
-      html += ` &nbsp; Categoría: <em>${t.categoria}</em> &nbsp; Equipo: <em>${t.equipo}</em></p>`;
-    }
-
-    if (t.respuestaIA) {
-      html += `<p><strong>Respuesta automática de la IA:</strong></p><p>${t.respuestaIA.replace(/\n/g, '<br>')}</p>`;
-    }
-
-    if (t.trelloUrl) {
-      html += `<p>📋 Se creó una tarjeta de seguimiento en Trello: <a class="link" href="${t.trelloUrl}" target="_blank">${t.trelloUrl}</a></p>`;
-    }
-
-    html += `</div>`;
-    resultadoDiv.innerHTML = html;
+    resultadoDiv.innerHTML = `<div class="resultado">✅ ${data.mensaje}</div>`;
     form.reset();
+    cargarTickets();
+
+    setTimeout(() => {
+      overlay.classList.remove('open');
+      resultadoDiv.innerHTML = '';
+    }, 1600);
   } catch (err) {
     resultadoDiv.innerHTML = `<div class="resultado error">❌ No se pudo conectar con el servidor: ${err.message}</div>`;
   } finally {
@@ -111,6 +118,59 @@ form.addEventListener('submit', async (e) => {
     btnEnviar.textContent = '🚀 Enviar Ticket';
   }
 });
+
+// ---------- Listar mis tickets ----------
+const contenedor = document.getElementById('contenedor-tickets');
+
+function formatearFecha(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+async function cargarTickets() {
+  try {
+    const res = await fetch(`/api/tickets?email=${encodeURIComponent(email)}`);
+    const tickets = await res.json();
+
+    if (!tickets.length) {
+      contenedor.innerHTML = '<div class="card empty">Todavía no has creado ningún ticket. Usa el botón "+ Nuevo ticket" para empezar.</div>';
+      return;
+    }
+
+    contenedor.innerHTML = tickets.map((t) => {
+      const prioridad = t.prioridadIA;
+      let html = `<div class="ticket-item">`;
+      html += `<div class="ticket-top">`;
+      html += `<h3>${t.titulo}</h3>`;
+      html += `<div class="meta">`;
+      if (prioridad) html += badge(prioridad, prioridad);
+      html += badge(t.estado, t.estado);
+      html += `</div></div>`;
+      html += `<p class="muted" style="margin:4px 0;">${t.descripcion}</p>`;
+      html += `<p class="muted" style="margin:4px 0;">Enviado: ${formatearFecha(t.createdAt)}${t.categoria ? ` · Categoría: ${t.categoria}` : ''}</p>`;
+
+      if (t.respuestaAdmin) {
+        html += `<div class="respuesta-box admin"><span class="quien">Respuesta del agente</span>${t.respuestaAdmin}</div>`;
+      } else if (t.respuestaIA) {
+        html += `<div class="respuesta-box ia"><span class="quien">Recomendación de la IA</span>${t.respuestaIA}</div>`;
+      } else {
+        html += `<p class="muted" style="margin:8px 0 0;">⏳ Esperando revisión...</p>`;
+      }
+
+      if (t.trelloUrl) {
+        html += `<p style="margin:8px 0 0;"><a class="link" href="${t.trelloUrl}" target="_blank">Ver seguimiento →</a></p>`;
+      }
+
+      html += `</div>`;
+      return html;
+    }).join('');
+  } catch (err) {
+    contenedor.innerHTML = `<div class="resultado error">No se pudieron cargar tus tickets: ${err.message}</div>`;
+  }
+}
+
+cargarTickets();
+setInterval(cargarTickets, 12000); // se refresca solo, para ver respuestas nuevas
 </script>
 </body>
 </html>
