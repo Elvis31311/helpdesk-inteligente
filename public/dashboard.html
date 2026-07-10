@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard — Help Desk Inteligente</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <h1>🎫 Help Desk Inteligente</h1>
+  <nav>
+    <a href="index.html">Crear Ticket</a>
+    <a href="admin.html">Panel de Agentes</a>
+    <a href="dashboard.html" class="active">Dashboard</a>
+  </nav>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Dashboard de métricas</h2>
+    <p class="muted">Estadísticas en tiempo real calculadas a partir de los tickets guardados en MongoDB Atlas.</p>
+
+    <div class="stat-grid" id="stat-grid"></div>
+
+    <h3>Tickets por prioridad</h3>
+    <div id="chart-prioridad"></div>
+
+    <h3>Tickets por categoría</h3>
+    <div id="chart-categoria"></div>
+  </div>
+</main>
+
+<script>
+async function cargarStats() {
+  const res = await fetch('/api/stats');
+  const stats = await res.json();
+
+  document.getElementById('stat-grid').innerHTML = `
+    <div class="stat-box"><div class="num">${stats.total}</div><div class="label">Total</div></div>
+    <div class="stat-box"><div class="num">${stats.abiertos}</div><div class="label">Abiertos</div></div>
+    <div class="stat-box"><div class="num">${stats.cerrados}</div><div class="label">Cerrados</div></div>
+    <div class="stat-box"><div class="num">${stats.escalados}</div><div class="label">Escalados a Trello</div></div>
+  `;
+
+  dibujarBarras('chart-prioridad', stats.porPrioridad, stats.total);
+  dibujarBarras('chart-categoria', stats.porCategoria, stats.total);
+}
+
+function dibujarBarras(idContenedor, datos, total) {
+  const contenedor = document.getElementById(idContenedor);
+  const entradas = Object.entries(datos);
+
+  if (!entradas.length) {
+    contenedor.innerHTML = '<p class="muted">Sin datos todavía.</p>';
+    return;
+  }
+
+  const max = Math.max(...entradas.map(([, cantidad]) => cantidad), 1);
+
+  contenedor.innerHTML = entradas.map(([nombre, cantidad]) => {
+    const porcentaje = Math.round((cantidad / max) * 100);
+    return `
+      <div class="bar-row">
+        <div class="bar-label">${nombre}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${porcentaje}%"></div></div>
+        <div class="bar-count">${cantidad}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+cargarStats();
+setInterval(cargarStats, 15000); // se actualiza solo cada 15 segundos
+</script>
+</body>
+</html>

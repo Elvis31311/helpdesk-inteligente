@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Help Desk Inteligente</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <h1>🎫 Help Desk Inteligente</h1>
+  <nav>
+    <a href="index.html" class="active">Crear Ticket</a>
+    <a href="admin.html">Panel de Agentes</a>
+    <a href="dashboard.html">Dashboard</a>
+  </nav>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Crear un nuevo ticket</h2>
+    <p class="muted">Describe tu problema. Nuestro agente de IA lo va a leer, clasificar y, si es necesario, escalarlo automáticamente.</p>
+
+    <form id="form-ticket">
+      <label for="titulo">Título</label>
+      <input type="text" id="titulo" placeholder="Ej: No puedo acceder al sistema" required />
+
+      <label for="descripcion">Descripción</label>
+      <textarea id="descripcion" placeholder="Cuéntanos con detalle qué está pasando..." required></textarea>
+
+      <label for="prioridad">Prioridad</label>
+      <select id="prioridad">
+        <option value="baja">Baja</option>
+        <option value="normal" selected>Normal</option>
+        <option value="alta">Alta</option>
+        <option value="urgente">Urgente</option>
+      </select>
+
+      <label for="email">Tu email</label>
+      <input type="email" id="email" placeholder="tucorreo@ejemplo.com" required />
+
+      <button type="submit" id="btn-enviar">🚀 Enviar Ticket</button>
+    </form>
+
+    <div id="resultado"></div>
+  </div>
+</main>
+
+<script>
+const form = document.getElementById('form-ticket');
+const resultadoDiv = document.getElementById('resultado');
+const btnEnviar = document.getElementById('btn-enviar');
+
+function badge(texto, clase) {
+  return `<span class="badge ${clase}">${texto}</span>`;
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  resultadoDiv.innerHTML = '';
+  btnEnviar.disabled = true;
+  btnEnviar.textContent = 'Enviando...';
+
+  const payload = {
+    titulo: document.getElementById('titulo').value.trim(),
+    descripcion: document.getElementById('descripcion').value.trim(),
+    prioridad: document.getElementById('prioridad').value,
+    email: document.getElementById('email').value.trim(),
+  };
+
+  try {
+    const res = await fetch('/api/tickets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      resultadoDiv.innerHTML = `<div class="resultado error">❌ ${data.error || 'Ocurrió un error'}</div>`;
+      return;
+    }
+
+    const t = data.ticket;
+    let html = `<div class="resultado exito">`;
+    html += `<p>✅ ${data.mensaje}</p>`;
+    html += `<p><strong>ID del ticket:</strong> ${t._id}</p>`;
+
+    if (t.categoria) {
+      html += `<p><strong>Clasificación de la IA:</strong> `;
+      html += badge(t.prioridadIA || t.prioridad, t.prioridadIA || t.prioridad);
+      html += ` &nbsp; Categoría: <em>${t.categoria}</em> &nbsp; Equipo: <em>${t.equipo}</em></p>`;
+    }
+
+    if (t.respuestaIA) {
+      html += `<p><strong>Respuesta automática de la IA:</strong></p><p>${t.respuestaIA.replace(/\n/g, '<br>')}</p>`;
+    }
+
+    if (t.trelloUrl) {
+      html += `<p>📋 Se creó una tarjeta de seguimiento en Trello: <a class="link" href="${t.trelloUrl}" target="_blank">${t.trelloUrl}</a></p>`;
+    }
+
+    html += `</div>`;
+    resultadoDiv.innerHTML = html;
+    form.reset();
+  } catch (err) {
+    resultadoDiv.innerHTML = `<div class="resultado error">❌ No se pudo conectar con el servidor: ${err.message}</div>`;
+  } finally {
+    btnEnviar.disabled = false;
+    btnEnviar.textContent = '🚀 Enviar Ticket';
+  }
+});
+</script>
+</body>
+</html>

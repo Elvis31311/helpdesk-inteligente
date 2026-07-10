@@ -1,0 +1,21 @@
+{
+  "name": "helpdesk-inteligente",
+  "version": "1.0.0",
+  "description": "Help Desk Inteligente con Agente de IA (Gemini) - Proyecto Cloud Computing",
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node api/index.js",
+    "dev": "node api/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "mongodb": "^6.10.0"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
