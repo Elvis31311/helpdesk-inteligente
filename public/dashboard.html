@@ -9,10 +9,14 @@
 <body>
 <header>
   <h1>🛠️ Panel de Agentes</h1>
-  <nav>
-    <a href="admin.html">Todos los tickets</a>
-    <a href="dashboard.html" class="active">Dashboard</a>
-  </nav>
+  <div class="user-badge">
+    <span id="admin-user"></span>
+    <nav style="margin:0;">
+      <a href="admin.html">Todos los tickets</a>
+      <a href="dashboard.html" class="active">Dashboard</a>
+    </nav>
+    <button class="ghost" id="btn-logout">Cerrar sesión</button>
+  </div>
 </header>
 
 <main>
@@ -31,8 +35,26 @@
 </main>
 
 <script>
+// ---------- Sesión de administrador ----------
+const adminToken = localStorage.getItem('helpdesk_admin_token');
+if (!adminToken) {
+  window.location.href = 'admin-login.html';
+}
+document.getElementById('admin-user').textContent = localStorage.getItem('helpdesk_admin_user') || 'Administrador';
+
+document.getElementById('btn-logout').addEventListener('click', () => {
+  localStorage.removeItem('helpdesk_admin_token');
+  localStorage.removeItem('helpdesk_admin_user');
+  window.location.href = 'admin-login.html';
+});
+
 async function cargarStats() {
-  const res = await fetch('/api/stats');
+  const res = await fetch('/api/stats', { headers: { 'x-admin-token': adminToken } });
+  if (res.status === 401) {
+    localStorage.removeItem('helpdesk_admin_token');
+    window.location.href = 'admin-login.html';
+    return;
+  }
   const stats = await res.json();
 
   document.getElementById('stat-grid').innerHTML = `

@@ -158,8 +158,43 @@ async function crearTarjetaTrello(ticket, clasificacion) {
 }
 
 // ------------------------------------------------------------
+// 3.5) AUTENTICACIÓN DE ADMINISTRADOR
+// ------------------------------------------------------------
+// Usuario y contraseña se definen como variables de entorno (nunca en el código).
+// ADMIN_TOKEN es un secreto separado que el servidor entrega solo si el login es correcto;
+// el panel de admin lo reenvía en cada petición protegida (header x-admin-token).
+const ADMIN_USER = process.env.ADMIN_USER;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+
+function adminProtegido() {
+  // Si no se configuraron las 3 variables, el panel de admin queda sin protección
+  // (útil mientras configuras el proyecto por primera vez).
+  return Boolean(ADMIN_USER && ADMIN_PASSWORD && ADMIN_TOKEN);
+}
+
+function requiereAdmin(req, res, next) {
+  if (!adminProtegido()) return next(); // sin variables configuradas = sin candado (modo inicial)
+  const token = req.headers['x-admin-token'];
+  if (token && token === ADMIN_TOKEN) return next();
+  return res.status(401).json({ error: 'No autorizado. Inicia sesión como administrador.' });
+}
+
+// ------------------------------------------------------------
 // 4) RUTAS DE LA API
 // ------------------------------------------------------------
+
+// Login de administrador — devuelve el token solo si usuario/contraseña coinciden
+app.post('/api/admin/login', (req, res) => {
+  if (!adminProtegido()) {
+    return res.status(500).json({ error: 'El panel de admin todavía no tiene configuradas ADMIN_USER, ADMIN_PASSWORD y ADMIN_TOKEN.' });
+  }
+  const { usuario, password } = req.body || {};
+  if (usuario === ADMIN_USER && password === ADMIN_PASSWORD) {
+    return res.json({ ok: true, token: ADMIN_TOKEN });
+  }
+  return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
+});
 
 // Health check — útil para verificar que el despliegue funciona
 app.get('/api/health', (req, res) => {
@@ -169,6 +204,7 @@ app.get('/api/health', (req, res) => {
     gemini: Boolean(GEMINI_API_KEY),
     trello: trelloConfigurado(),
     mongo: Boolean(MONGODB_URI),
+    adminProtegido: adminProtegido(),
   });
 });
 
@@ -254,9 +290,12 @@ app.post('/api/tickets', async (req, res) => {
   }
 });
 
-// Listar tickets. Si se pasa ?email=..., solo devuelve los de ese correo (portal de usuario).
-// Sin ese parámetro, devuelve todos (panel de administrador).
-app.get('/api/tickets', async (req, res) => {
+// Listar tickets. Si se pasa ?email=..., solo devuelve los de ese correo (portal de usuario, público).
+// Sin ese parámetro, devuelve TODOS los tickets — eso requiere sesión de administrador.
+app.get('/api/tickets', async (req, res, next) => {
+  if (!req.query.email) return requiereAdmin(req, res, next);
+  next();
+}, async (req, res) => {
   try {
     const db = await connectToDatabase();
     const filtro = {};
@@ -284,8 +323,8 @@ app.get('/api/tickets/:id', async (req, res) => {
   }
 });
 
-// Actualizar ticket (ej. cerrar, reabrir, o el admin agrega su propia respuesta manual)
-app.put('/api/tickets/:id', async (req, res) => {
+// Actualizar ticket (ej. cerrar, reabrir, o el admin agrega su propia respuesta manual) — solo admin
+app.put('/api/tickets/:id', requiereAdmin, async (req, res) => {
   try {
     const db = await connectToDatabase();
     const cambios = { ...(req.body || {}), updatedAt: new Date() };
@@ -306,8 +345,8 @@ app.put('/api/tickets/:id', async (req, res) => {
   }
 });
 
-// Eliminar ticket
-app.delete('/api/tickets/:id', async (req, res) => {
+// Eliminar ticket — solo admin
+app.delete('/api/tickets/:id', requiereAdmin, async (req, res) => {
   try {
     const db = await connectToDatabase();
     const resultado = await db.collection('tickets').deleteOne({ _id: new ObjectId(req.params.id) });
@@ -334,8 +373,8 @@ app.post('/api/agent/triage', async (req, res) => {
   }
 });
 
-// Estadísticas para el dashboard
-app.get('/api/stats', async (req, res) => {
+// Estadísticas para el dashboard — solo admin
+app.get('/api/stats', requiereAdmin, async (req, res) => {
   try {
     const db = await connectToDatabase();
     const tickets = await db.collection('tickets').find().toArray();
