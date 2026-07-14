@@ -158,25 +158,22 @@ async function crearTarjetaTrello(ticket, clasificacion) {
 }
 
 // ------------------------------------------------------------
-// 3.5) AUTENTICACIÓN DE ADMINISTRADOR
+// 3.5) AUTENTICACIÓN DE ADMINISTRADOR (solo contraseña)
 // ------------------------------------------------------------
-// Usuario y contraseña se definen como variables de entorno (nunca en el código).
-// ADMIN_TOKEN es un secreto separado que el servidor entrega solo si el login es correcto;
-// el panel de admin lo reenvía en cada petición protegida (header x-admin-token).
-const ADMIN_USER = process.env.ADMIN_USER;
+// Una única contraseña definida en variables de entorno. Nunca vive en el código
+// del navegador: el servidor es quien la valida.
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 
 function adminProtegido() {
-  // Si no se configuraron las 3 variables, el panel de admin queda sin protección
+  // Si no se configura, el panel de admin queda sin protección
   // (útil mientras configuras el proyecto por primera vez).
-  return Boolean(ADMIN_USER && ADMIN_PASSWORD && ADMIN_TOKEN);
+  return Boolean(ADMIN_PASSWORD);
 }
 
 function requiereAdmin(req, res, next) {
-  if (!adminProtegido()) return next(); // sin variables configuradas = sin candado (modo inicial)
+  if (!adminProtegido()) return next(); // sin variable configurada = sin candado (modo inicial)
   const token = req.headers['x-admin-token'];
-  if (token && token === ADMIN_TOKEN) return next();
+  if (token && token === ADMIN_PASSWORD) return next();
   return res.status(401).json({ error: 'No autorizado. Inicia sesión como administrador.' });
 }
 
@@ -184,16 +181,16 @@ function requiereAdmin(req, res, next) {
 // 4) RUTAS DE LA API
 // ------------------------------------------------------------
 
-// Login de administrador — devuelve el token solo si usuario/contraseña coinciden
+// Login de administrador — solo contraseña
 app.post('/api/admin/login', (req, res) => {
   if (!adminProtegido()) {
-    return res.status(500).json({ error: 'El panel de admin todavía no tiene configuradas ADMIN_USER, ADMIN_PASSWORD y ADMIN_TOKEN.' });
+    return res.status(500).json({ error: 'El panel de admin todavía no tiene configurada la variable ADMIN_PASSWORD.' });
   }
-  const { usuario, password } = req.body || {};
-  if (usuario === ADMIN_USER && password === ADMIN_PASSWORD) {
-    return res.json({ ok: true, token: ADMIN_TOKEN });
+  const { password } = req.body || {};
+  if (password === ADMIN_PASSWORD) {
+    return res.json({ ok: true });
   }
-  return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
+  return res.status(401).json({ error: 'Contraseña incorrecta.' });
 });
 
 // Health check — útil para verificar que el despliegue funciona

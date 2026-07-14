@@ -1,4 +1,4 @@
-# 🎫 Help Desk Inteligente con Agente de IA (100% Cloud, 100% Gratis)
+# 🎫 FixIA — Help Desk Inteligente con Agente de IA (100% Cloud, 100% Gratis)
 
 Proyecto final de Cloud Computing — CENESTUR.
 
@@ -79,6 +79,22 @@ git -v
 
 ---
 
+## 3.5. Proteger el panel de administrador con contraseña
+
+El panel de admin (`admin.html`) pide una contraseña, verificada en el servidor (nunca queda escrita en el código del navegador).
+
+1. Elige una contraseña para el panel de administrador.
+2. Define esta variable de entorno (localmente en tu `.env`, y también en Vercel):
+   ```
+   ADMIN_PASSWORD=tu_contraseña_elegida
+   ```
+
+> ⚠️ Si dejas esta variable sin definir, el panel de admin queda **sin protección** (así funcionaba antes) — útil mientras configuras el proyecto por primera vez, pero recuerda configurarla antes de entregar o compartir la URL.
+
+Con esto configurado, entrar a `admin.html` o `dashboard.html` directamente sin haber iniciado sesión en `admin-login.html` ya no muestra ningún dato: el servidor responde con error 401 a cualquier petición sin la contraseña correcta.
+
+---
+
 ## 4. Configurar el proyecto en tu computadora
 
 1. Descarga/descomprime este proyecto y ábrelo en VS Code.
@@ -93,6 +109,7 @@ git -v
    TRELLO_LIST_BAJA=id_de_la_lista_baja
    TRELLO_LIST_MEDIA=id_de_la_lista_media
    TRELLO_LIST_ALTA=id_de_la_lista_alta
+   ADMIN_PASSWORD=tu_contraseña_elegida
    ```
 3. Instala las dependencias:
    ```
@@ -140,6 +157,7 @@ git -v
    - `TRELLO_LIST_MEDIA`
    - `TRELLO_LIST_ALTA`
    - `TRELLO_LIST_CRITICA` (opcional)
+   - `ADMIN_PASSWORD`
 5. Click en **Deploy**. Espera unos 30-60 segundos.
 6. Cuando termine, Vercel te da una URL pública, algo como:
    ```
@@ -154,7 +172,7 @@ Abre en tu navegador (reemplaza con tu URL real):
 
 - `https://tu-proyecto.vercel.app/login.html` → **punto de entrada del portal de usuario**. Escribe cualquier correo para "iniciar sesión" (es solo una identificación por correo, sin contraseña — así el sistema sabe qué tickets son tuyos).
 - Después del login entras a `index.html` → aquí solo puedes **crear tickets** (con el botón "+ Nuevo ticket", que abre un popup) y **ver los tickets que tú mismo enviaste**, junto con la respuesta de la IA o del agente cuando llegue. La IA decide la prioridad sola; ya no la eliges tú.
-- `https://tu-proyecto.vercel.app/admin.html` → **panel de agentes**, sin login (pensado para que solo tú, como administrador, lo uses). Aquí ves **todos** los tickets de todos los usuarios, con botón "Ver / Responder" para escribir una respuesta manual, verificar lo que dijo la IA, cerrar o eliminar el ticket.
+- `https://tu-proyecto.vercel.app/admin.html` → **panel de agentes**. Ahora pide iniciar sesión primero en `admin-login.html` con la contraseña que definiste en `ADMIN_PASSWORD`. Aquí ves **todos** los tickets de todos los usuarios, con botón "Ver / Responder" para escribir una respuesta manual, verificar lo que dijo la IA, cerrar o eliminar el ticket.
 - `https://tu-proyecto.vercel.app/dashboard.html` → estadísticas generales (enlazado desde el panel de agentes).
 - `https://tu-proyecto.vercel.app/api/health` → debe decir `"mongo": true, "gemini": true, "trello": true`.
 
@@ -198,4 +216,3 @@ Usuario (navegador)
 - **Error de conexión a MongoDB** → revisa que en Network Access hayas agregado `0.0.0.0/0`, y que la contraseña en `MONGODB_URI` no tenga caracteres especiales sin codificar (si tu contraseña tiene `@`, `#`, etc., reemplázalos por su código `%XX`, o mejor, genera una contraseña solo con letras y números).
 - Después de cambiar cualquier variable de entorno en Vercel, tienes que hacer **Redeploy** para que tome efecto.
 
-¡Éxitos con la presentación! 🚀

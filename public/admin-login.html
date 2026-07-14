@@ -3,22 +3,34 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Acceso de Administrador — Help Desk Inteligente</title>
+<title>FixIA — Acceso de Administrador</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 <div class="login-wrap">
   <div class="admin-login-card">
+    <span class="logo-mark">
+      <svg width="44" height="44" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="34" height="34" rx="9" fill="url(#g2)"/>
+        <path d="M9 13.5a2.5 2.5 0 012.5-2.5h10a2.5 2.5 0 012.5 2.5v5a2.5 2.5 0 01-2.5 2.5h-6.2l-4.3 3.1v-3.1H11.5A2.5 2.5 0 019 18.5v-5z" fill="#fff"/>
+        <circle cx="13.5" cy="16" r="1.1" fill="#1D4ED8"/>
+        <circle cx="17" cy="16" r="1.1" fill="#1D4ED8"/>
+        <circle cx="20.5" cy="16" r="1.1" fill="#1D4ED8"/>
+        <defs>
+          <linearGradient id="g2" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#FF6347"/>
+            <stop offset="1" stop-color="#1D4ED8"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </span>
     <span class="badge-formal">🔒 Acceso restringido</span>
     <h1>Panel de Administrador</h1>
-    <p>Ingresa tus credenciales para gestionar todos los tickets del sistema.</p>
+    <p>Ingresa la contraseña de administrador para gestionar todos los tickets del sistema.</p>
 
     <form id="form-admin-login">
-      <div class="field-group">
-        <label for="usuario">Usuario</label>
-        <input type="text" id="usuario" autocomplete="username" required />
-      </div>
-
       <div class="field-group">
         <label for="password">Contraseña</label>
         <input type="password" id="password" autocomplete="current-password" required />
@@ -34,7 +46,6 @@
 </div>
 
 <script>
-// Si ya hay una sesión de admin guardada, saltamos directo al panel.
 if (localStorage.getItem('helpdesk_admin_token')) {
   window.location.href = 'admin.html';
 }
@@ -49,14 +60,13 @@ form.addEventListener('submit', async (e) => {
   btn.disabled = true;
   btn.textContent = 'Verificando...';
 
-  const usuario = document.getElementById('usuario').value.trim();
   const password = document.getElementById('password').value;
 
   try {
     const res = await fetch('/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usuario, password }),
+      body: JSON.stringify({ password }),
     });
     const data = await res.json();
 
@@ -65,8 +75,8 @@ form.addEventListener('submit', async (e) => {
       return;
     }
 
-    localStorage.setItem('helpdesk_admin_token', data.token);
-    localStorage.setItem('helpdesk_admin_user', usuario);
+    // Guardamos la misma contraseña como credencial para las siguientes peticiones.
+    localStorage.setItem('helpdesk_admin_token', password);
     window.location.href = 'admin.html';
   } catch (err) {
     mensajeError.innerHTML = `<div class="resultado error" style="margin-top:14px;">❌ No se pudo conectar con el servidor: ${err.message}</div>`;

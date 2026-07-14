@@ -3,33 +3,54 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Panel de Agentes — Help Desk Inteligente</title>
+<title>FixIA — Agent Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 <header>
-  <h1>🛠️ Panel de Agentes</h1>
+  <span class="brand">
+    <span class="logo-mark">
+      <svg width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="34" height="34" rx="9" fill="url(#g4)"/>
+        <path d="M9 13.5a2.5 2.5 0 012.5-2.5h10a2.5 2.5 0 012.5 2.5v5a2.5 2.5 0 01-2.5 2.5h-6.2l-4.3 3.1v-3.1H11.5A2.5 2.5 0 019 18.5v-5z" fill="#fff"/>
+        <circle cx="13.5" cy="16" r="1.1" fill="#1D4ED8"/>
+        <circle cx="17" cy="16" r="1.1" fill="#1D4ED8"/>
+        <circle cx="20.5" cy="16" r="1.1" fill="#1D4ED8"/>
+        <defs>
+          <linearGradient id="g4" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#FF6347"/>
+            <stop offset="1" stop-color="#1D4ED8"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </span>
+    <span class="brand-text">
+      <span class="name">Fix<span>IA</span></span>
+      <span class="tagline">Agent Dashboard</span>
+    </span>
+  </span>
   <div class="user-badge">
-    <span id="admin-user"></span>
     <nav style="margin:0;">
-      <a href="admin.html" class="active">Todos los tickets</a>
-      <a href="dashboard.html">Dashboard</a>
+      <a href="dashboard.html">📊 Estadísticas</a>
+      <a href="login.html">← Portal de Usuarios</a>
     </nav>
     <button class="ghost" id="btn-logout">Cerrar sesión</button>
   </div>
 </header>
 
+<p class="page-subtitle">Gestión operativa de tickets almacenados en MongoDB Atlas.</p>
+
 <main>
-  <div class="top-bar">
-    <h2>Todos los tickets</h2>
-    <div class="actions">
-      <select id="filtro-estado">
-        <option value="">Todos los estados</option>
-        <option value="abierto">Abiertos</option>
-        <option value="cerrado">Cerrados</option>
-      </select>
-      <button class="secondary" id="btn-refrescar">🔄 Refrescar</button>
+  <div class="tabs">
+    <div class="tab-list">
+      <button class="tab-btn active" data-tab="todos">Todos</button>
+      <button class="tab-btn" data-tab="pendientes">Pendientes (Abiertos)</button>
+      <button class="tab-btn" data-tab="escalados">Escalados a Trello</button>
+      <button class="tab-btn" data-tab="resueltos">Historial Resueltos</button>
     </div>
+    <button class="dark" id="btn-refrescar">🔄 Sincronizar Datos</button>
   </div>
 
   <div id="contenedor-tabla">
@@ -54,7 +75,7 @@
 
     <div class="actions">
       <button id="btn-guardar-abierto">Guardar respuesta</button>
-      <button id="btn-guardar-cerrar" class="secondary">Guardar y cerrar ticket</button>
+      <button id="btn-guardar-cerrar" class="secondary">✓ Resolver y cerrar</button>
       <button id="btn-eliminar" class="danger">Eliminar</button>
     </div>
   </div>
@@ -66,15 +87,12 @@ const adminToken = localStorage.getItem('helpdesk_admin_token');
 if (!adminToken) {
   window.location.href = 'admin-login.html';
 }
-document.getElementById('admin-user').textContent = localStorage.getItem('helpdesk_admin_user') || 'Administrador';
 
 document.getElementById('btn-logout').addEventListener('click', () => {
   localStorage.removeItem('helpdesk_admin_token');
-  localStorage.removeItem('helpdesk_admin_user');
   window.location.href = 'admin-login.html';
 });
 
-// Helper: fetch que agrega el token de admin y maneja sesión expirada/incorrecta
 async function fetchAdmin(url, options = {}) {
   const res = await fetch(url, {
     ...options,
@@ -90,19 +108,31 @@ async function fetchAdmin(url, options = {}) {
 
 let ticketsCache = [];
 let ticketActivoId = null;
+let tabActiva = 'todos';
 
 const contenedor = document.getElementById('contenedor-tabla');
-const filtroEstado = document.getElementById('filtro-estado');
-const btnRefrescar = document.getElementById('btn-refrescar');
 const overlay = document.getElementById('modal-overlay');
 
 function badge(texto, clase) {
   return `<span class="badge ${clase}">${texto || 'sin clasificar'}</span>`;
 }
 
+function estadoOperativo(t) {
+  if (t.estado === 'cerrado') return { texto: 'Resuelto', clase: 'resuelto' };
+  if (t.trelloUrl) return { texto: 'Escalado a Trello', clase: 'escalado' };
+  return { texto: 'Abierto', clase: 'pendiente' };
+}
+
 function formatearFecha(iso) {
   const d = new Date(iso);
-  return d.toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' });
+  return d.toLocaleString('es-EC', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).replace('.', '');
+}
+
+function filtrarPorTab(tickets) {
+  if (tabActiva === 'pendientes') return tickets.filter(t => t.estado === 'abierto' && !t.trelloUrl);
+  if (tabActiva === 'escalados') return tickets.filter(t => Boolean(t.trelloUrl) && t.estado !== 'cerrado');
+  if (tabActiva === 'resueltos') return tickets.filter(t => t.estado === 'cerrado');
+  return tickets;
 }
 
 async function cargarTickets() {
@@ -111,43 +141,48 @@ async function cargarTickets() {
     const res = await fetchAdmin('/api/tickets');
     ticketsCache = await res.json();
 
-    let tickets = ticketsCache;
-    const estado = filtroEstado.value;
-    if (estado) tickets = tickets.filter(t => t.estado === estado);
+    const tickets = filtrarPorTab(ticketsCache);
 
     if (!tickets.length) {
-      contenedor.innerHTML = '<div class="card empty">No hay tickets todavía.</div>';
+      contenedor.innerHTML = '<div class="card empty">No hay tickets en esta vista.</div>';
       return;
     }
 
     let html = '<div class="card" style="padding:0; overflow-x:auto;"><table><thead><tr>';
-    html += '<th>Ticket</th><th>Prioridad</th><th>Categoría</th><th>Equipo</th><th>Estado</th><th>Respondido por</th><th>Creado</th><th></th>';
+    html += '<th>ID (Hash)</th><th>Asunto del problema</th><th>Contacto</th><th>Prioridad IA</th><th>Estado operativo</th><th>Fecha</th><th>Acción</th>';
     html += '</tr></thead><tbody>';
 
     tickets.forEach(t => {
       const prioridad = t.prioridadIA;
-      let respondidoPor = '—';
-      if (t.respuestaAdmin) respondidoPor = '🧑‍💼 Agente';
-      else if (t.respuestaIA) respondidoPor = '🤖 IA';
+      const estado = estadoOperativo(t);
+      const hash = '...' + String(t._id).slice(-5);
 
-      html += '<tr>';
-      html += `<td><strong>${t.titulo}</strong><br><span class="muted">${t.email}</span>`;
-      if (t.trelloUrl) html += `<br><a class="link" href="${t.trelloUrl}" target="_blank">Ver en Trello</a>`;
-      html += `</td>`;
+      let accion;
+      if (t.estado === 'cerrado') {
+        accion = '<span class="muted">✓ Cerrado</span>';
+      } else if (t.trelloUrl) {
+        accion = '<span class="muted">En Trello</span>';
+      } else {
+        accion = `<button class="secondary" style="background:var(--baja); color:#fff; border:none;" onclick="event.stopPropagation(); abrirModal('${t._id}')">✓ Resolver</button>`;
+      }
+
+      html += `<tr class="ticket-row" onclick="abrirModal('${t._id}')">`;
+      html += `<td class="id-hash">${hash}</td>`;
+      html += `<td><strong>${t.titulo || '(sin título)'}</strong></td>`;
+      html += `<td>${t.email}</td>`;
       html += `<td>${badge(prioridad, prioridad || 'media')}</td>`;
-      html += `<td>${t.categoria || '—'}</td>`;
-      html += `<td>${t.equipo || '—'}</td>`;
-      html += `<td>${badge(t.estado, t.estado)}</td>`;
-      html += `<td>${respondidoPor}</td>`;
+      html += `<td>${badge(estado.texto, estado.clase)}</td>`;
       html += `<td class="muted">${formatearFecha(t.createdAt)}</td>`;
-      html += `<td><button class="secondary" onclick="abrirModal('${t._id}')">Ver / Responder</button></td>`;
+      html += `<td>${accion}</td>`;
       html += `</tr>`;
     });
 
     html += '</tbody></table></div>';
     contenedor.innerHTML = html;
   } catch (err) {
-    contenedor.innerHTML = `<div class="resultado error">No se pudieron cargar los tickets: ${err.message}</div>`;
+    if (err.message !== 'Sesión expirada') {
+      contenedor.innerHTML = `<div class="resultado error">No se pudieron cargar los tickets: ${err.message}</div>`;
+    }
   }
 }
 
@@ -156,11 +191,12 @@ function abrirModal(id) {
   if (!t) return;
   ticketActivoId = id;
 
-  document.getElementById('modal-titulo').textContent = t.titulo;
+  document.getElementById('modal-titulo').textContent = t.titulo || '(sin título)';
   document.getElementById('modal-detalle').innerHTML = `
     <strong>De:</strong> ${t.email}<br>
     <strong>Descripción:</strong> ${t.descripcion}<br>
     <strong>Prioridad:</strong> ${t.prioridadIA || 'sin clasificar'} · <strong>Categoría:</strong> ${t.categoria || '—'} · <strong>Equipo:</strong> ${t.equipo || '—'}
+    ${t.trelloUrl ? `<br><a class="link" href="${t.trelloUrl}" target="_blank">Ver tarjeta en Trello →</a>` : ''}
   `;
 
   const iaBox = document.getElementById('modal-ia-box');
@@ -200,8 +236,16 @@ document.getElementById('btn-eliminar').addEventListener('click', async () => {
   cargarTickets();
 });
 
-filtroEstado.addEventListener('change', cargarTickets);
-btnRefrescar.addEventListener('click', cargarTickets);
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    tabActiva = btn.dataset.tab;
+    cargarTickets();
+  });
+});
+
+document.getElementById('btn-refrescar').addEventListener('click', cargarTickets);
 cargarTickets();
 setInterval(cargarTickets, 15000);
 </script>
