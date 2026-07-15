@@ -122,6 +122,9 @@ const TRELLO_LISTS = {
   critica: process.env.TRELLO_LIST_CRITICA || process.env.TRELLO_LIST_ALTA,
 };
 
+// Lista final del tablero: cuando el admin cierra un ticket, su tarjeta se mueve aquí.
+const TRELLO_LIST_COMPLETADO = process.env.TRELLO_LIST_COMPLETADO;
+
 function trelloConfigurado() {
   return Boolean(TRELLO_KEY && TRELLO_TOKEN && (TRELLO_LISTS.baja || TRELLO_LISTS.media || TRELLO_LISTS.alta));
 }
@@ -154,7 +157,34 @@ async function crearTarjetaTrello(ticket, clasificacion) {
   }
 
   const card = await response.json();
-  return card.shortUrl || card.url || null;
+  return { id: card.id, url: card.shortUrl || card.url || null };
+}
+
+// Mueve una tarjeta a la lista "Completado" y la deja al final (pos: bottom) — se llama al cerrar un ticket.
+async function moverTarjetaACompletado(cardId) {
+  if (!TRELLO_KEY || !TRELLO_TOKEN || !TRELLO_LIST_COMPLETADO || !cardId) {
+    console.warn('No se movió la tarjeta a Completado: falta TRELLO_LIST_COMPLETADO o el cardId.');
+    return false;
+  }
+
+  const params = new URLSearchParams({
+    key: TRELLO_KEY,
+    token: TRELLO_TOKEN,
+    idList: TRELLO_LIST_COMPLETADO,
+    pos: 'bottom',
+  });
+
+  const response = await fetch(`https://api.trello.com/1/cards/${cardId}?${params.toString()}`, {
+    method: 'PUT',
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error('Error moviendo tarjeta de Trello a Completado:', response.status, errText);
+    return false;
+  }
+
+  return true;
 }
 
 // ------------------------------------------------------------
@@ -227,6 +257,7 @@ app.post('/api/tickets', async (req, res) => {
       prioridadIA: null,
       escalado: false,
       trelloUrl: null,
+      trelloCardId: null,
       respuestaIA: null,
       respuestaAdmin: null,
       createdAt: new Date(),
@@ -261,9 +292,10 @@ app.post('/api/tickets', async (req, res) => {
         // Todo lo demás (baja, media, alta, crítica) obtiene una tarjeta
         // en la lista de Trello que corresponde a su prioridad, y sigue abierto
         // para que un agente lo confirme (aunque la IA ya haya dejado una recomendación).
-        const trelloUrl = await crearTarjetaTrello({ ...nuevoTicket, _id: ticketId }, clasificacion);
-        if (trelloUrl) {
-          actualizacion.trelloUrl = trelloUrl;
+        const tarjeta = await crearTarjetaTrello({ ...nuevoTicket, _id: ticketId }, clasificacion);
+        if (tarjeta) {
+          actualizacion.trelloUrl = tarjeta.url;
+          actualizacion.trelloCardId = tarjeta.id;
         }
         mensaje = clasificacion.escalar
           ? 'Ticket creado. Es urgente: un agente lo revisará ahora mismo.'
@@ -335,6 +367,16 @@ app.put('/api/tickets/:id', requiereAdmin, async (req, res) => {
 
     const actualizado = resultado.value || resultado; // compatibilidad entre versiones del driver
     if (!actualizado) return res.status(404).json({ error: 'Ticket no encontrado' });
+
+    // Si el ticket se está cerrando y tenía tarjeta en Trello, la movemos a "Completado".
+    if (cambios.estado === 'cerrado' && actualizado.trelloCardId) {
+      try {
+        await moverTarjetaACompletado(actualizado.trelloCardId);
+      } catch (trelloError) {
+        console.error('Aviso: no se pudo mover la tarjeta de Trello:', trelloError.message);
+      }
+    }
+
     res.json(actualizado);
   } catch (error) {
     console.error(error);
