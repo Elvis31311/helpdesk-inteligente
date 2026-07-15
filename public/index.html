@@ -55,6 +55,7 @@
       <h2>Crear un nuevo ticket</h2>
       <button class="ghost" id="btn-cerrar-modal">✕</button>
     </div>
+    <div class="modal-body">
     <p class="muted" style="margin-top:0;">Describe tu problema. Nuestro agente de IA lo va a leer, clasificar por prioridad y, si es necesario, escalarlo automáticamente.</p>
 
     <form id="form-ticket">
@@ -68,6 +69,7 @@
     </form>
 
     <div id="resultado"></div>
+    </div>
   </div>
 </div>
 
@@ -177,10 +179,6 @@ async function cargarTickets() {
         html += `<div class="respuesta-box ia"><span class="quien">Recomendación de la IA</span>${t.respuestaIA}</div>`;
       } else {
         html += `<p class="muted" style="margin:8px 0 0;">⏳ Esperando revisión...</p>`;
-      }
-
-      if (t.trelloUrl) {
-        html += `<p style="margin:8px 0 0;"><a class="link" href="${t.trelloUrl}" target="_blank">Ver seguimiento →</a></p>`;
       }
 
       html += `</div>`;

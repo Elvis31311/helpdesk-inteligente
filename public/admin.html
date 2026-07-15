@@ -120,7 +120,6 @@ function badge(texto, clase) {
 
 function estadoOperativo(t) {
   if (t.estado === 'cerrado') return { texto: 'Resuelto', clase: 'resuelto' };
-  if (t.trelloUrl) return { texto: 'Escalado a Trello', clase: 'escalado' };
   return { texto: 'Abierto', clase: 'pendiente' };
 }
 
