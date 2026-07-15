@@ -1,4 +1,4 @@
-# 🎫 FixIA — Help Desk Inteligente con Agente de IA (100% Cloud, 100% Gratis)
+# 🎫 IA Cenestur — Help Desk Inteligente con Agente de IA (100% Cloud, 100% Gratis)
 
 Proyecto final de Cloud Computing — CENESTUR.
 

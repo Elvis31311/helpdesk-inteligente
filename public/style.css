@@ -1,21 +1,26 @@
 :root {
-  --bg: #f6f7f9;
+  /* Dominante (60%) — blanco / gris claro */
+  --bg: #f8f9fa;
   --card: #ffffff;
   --border: #e6e8ec;
   --text: #1c2130;
   --text-muted: #6b7280;
 
-  --tomato: #ff6347;
-  --tomato-dark: #e5503a;
-  --tomato-light: #fff1ee;
-
-  --blue: #1d4ed8;
-  --blue-dark: #1739a6;
+  /* Secundario (30%) — azul eléctrico / índigo, para acciones estándar */
+  --blue: #4f46e5;
+  --blue-dark: #4338ca;
   --blue-light: #eef2ff;
 
-  --critica: #e5503a;
+  /* Acento (10%) — morado neón, exclusivo para elementos de IA */
+  --ia: #a855f7;
+  --ia-dark: #9333ea;
+  --ia-light: #f5ecff;
+  --ia-cyan: #06b6d4;
+  --ia-gradient: linear-gradient(135deg, var(--ia), var(--ia-cyan));
+
+  --critica: #dc2626;
   --alta: #ea580c;
-  --media: #1d4ed8;
+  --media: #4f46e5;
   --baja: #16a34a;
   --pendiente: #d97706;
   --escalado: #7c3aed;
@@ -33,7 +38,7 @@ body {
   color: var(--text);
 }
 
-/* ---------- Marca FixIA ---------- */
+/* ---------- Marca IA Cenestur ---------- */
 .brand {
   display: flex;
   align-items: center;
@@ -51,7 +56,7 @@ body {
   color: var(--blue-dark);
   letter-spacing: -0.01em;
 }
-.brand-text .name span { color: var(--tomato); }
+.brand-text .name span { color: var(--ia); }
 .brand-text .tagline {
   font-size: 0.72rem;
   color: var(--text-muted);
@@ -144,7 +149,7 @@ input:focus, textarea:focus, select:focus {
 textarea { min-height: 100px; resize: vertical; }
 
 button {
-  background: var(--tomato);
+  background: var(--blue);
   color: white;
   border: none;
   padding: 11px 20px;
@@ -155,7 +160,7 @@ button {
   font-family: inherit;
 }
 
-button:hover { background: var(--tomato-dark); }
+button:hover { background: var(--blue-dark); }
 button:disabled { opacity: 0.6; cursor: default; }
 
 button.secondary {
@@ -244,7 +249,7 @@ tr.ticket-row:hover { background: #fafbfc; }
   box-shadow: var(--shadow);
 }
 
-.stat-box .num { font-size: 1.7rem; font-weight: 900; color: var(--tomato); }
+.stat-box .num { font-size: 1.7rem; font-weight: 900; color: var(--blue); }
 .stat-box .label { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; }
 
 .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
@@ -348,7 +353,7 @@ tr.ticket-row:hover { background: #fafbfc; }
   border: 1px solid var(--border);
   border-radius: 9px;
 }
-.admin-link:hover { border-color: var(--tomato); color: var(--tomato); background: var(--tomato-light); }
+.admin-link:hover { border-color: var(--ia); color: var(--ia-dark); background: var(--ia-light); }
 
 /* ---------- Login formal de administrador ---------- */
 .admin-login-card {
@@ -408,7 +413,7 @@ tr.ticket-row:hover { background: #fafbfc; }
   text-decoration: none;
   font-weight: 600;
 }
-.back-link:hover { color: var(--tomato); }
+.back-link:hover { color: var(--blue); }
 
 /* ---------- Ticket cards (portal de usuario) ---------- */
 .ticket-item {
@@ -433,14 +438,15 @@ tr.ticket-row:hover { background: #fafbfc; }
 
 .respuesta-box {
   margin-top: 10px;
-  padding: 12px 14px;
+  padding: 12px 14px 12px 16px;
   border-radius: 10px;
   font-size: 0.88rem;
   white-space: pre-line;
+  border-left: 3px solid transparent;
 }
 
-.respuesta-box.ia { background: var(--blue-light); border: 1px solid #c7d2fe; }
-.respuesta-box.admin { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.respuesta-box.ia { background: var(--ia-light); border-left-color: var(--ia); }
+.respuesta-box.admin { background: #f0fdf4; border-left-color: var(--baja); }
 
 .respuesta-box .quien {
   font-weight: 800;
@@ -449,6 +455,13 @@ tr.ticket-row:hover { background: #fafbfc; }
   letter-spacing: 0.03em;
   margin-bottom: 4px;
   display: block;
+}
+
+.respuesta-box.ia .quien {
+  background: var(--ia-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* ---------- Modal ---------- */
@@ -468,17 +481,28 @@ tr.ticket-row:hover { background: #fafbfc; }
 .modal-box {
   background: var(--card);
   border-radius: 16px;
-  padding: 28px;
   max-width: 480px;
   width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  padding: 0;
 }
 
 .modal-box .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  padding: 22px 28px 14px;
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  z-index: 1;
+}
+
+.modal-box .modal-body {
+  padding: 18px 28px 28px;
 }
 
 .modal-box h2 { margin: 0; font-size: 1.1rem; }
