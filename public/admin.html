@@ -46,7 +46,6 @@
   <div class="tabs">
     <div class="tab-list">
       <button class="tab-btn active" data-tab="todos">Todos</button>
-      <button class="tab-btn" data-tab="pendientes">Pendientes (Abiertos)</button>
       <button class="tab-btn" data-tab="escalados">Escalados a Trello</button>
       <button class="tab-btn" data-tab="resueltos">Historial Resueltos</button>
     </div>
@@ -66,6 +65,7 @@
       <button class="ghost" id="btn-cerrar-modal">✕</button>
     </div>
 
+    <div class="modal-body">
     <div id="modal-detalle" class="muted" style="margin-bottom:14px;"></div>
 
     <div id="modal-ia-box"></div>
@@ -77,6 +77,7 @@
       <button id="btn-guardar-abierto">Guardar respuesta</button>
       <button id="btn-guardar-cerrar" class="secondary">✓ Resolver y cerrar</button>
       <button id="btn-eliminar" class="danger">Eliminar</button>
+    </div>
     </div>
   </div>
 </div>
@@ -129,7 +130,6 @@ function formatearFecha(iso) {
 }
 
 function filtrarPorTab(tickets) {
-  if (tabActiva === 'pendientes') return tickets.filter(t => t.estado === 'abierto' && !t.trelloUrl);
   if (tabActiva === 'escalados') return tickets.filter(t => Boolean(t.trelloUrl) && t.estado !== 'cerrado');
   if (tabActiva === 'resueltos') return tickets.filter(t => t.estado === 'cerrado');
   return tickets;
